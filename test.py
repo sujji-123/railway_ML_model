@@ -187,4 +187,4 @@ def predict(request: PredictRequest):
 # 👇 Added section to handle local + Render startup automatically
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))  # Render provides PORT, fallback to 8000 locally
-    uvicorn.run("test:app", host="127.0.0.1", port=port, reload=True)
+    uvicorn.run("test:app", host="0.0.0.0", port=port, reload=True)
