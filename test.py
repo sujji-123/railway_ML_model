@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException  
-from pydantic import BaseModel  
+from pydantic import BaseModel, validator
+  
 from typing import Optional, List, Dict, Any
 import requests  
 import pandas as pd  
@@ -27,16 +28,23 @@ class Condition(str, Enum):
     WORN = "Worn"
     DAMAGED = "Damaged"
 
-class VibrationLevel(str, Enum):
-    LOW = "Low"
-    HIGH = "High"
-    CRITICAL = "Critical"
+# class VibrationLevel(str, Enum):
+#     LOW = "Low"
+#     HIGH = "High"
+#     CRITICAL = "Critical"
 
 class InspectionRecommendationRequest(BaseModel):
     condition: Condition
     voltage_reading: float
-    vibration_level: VibrationLevel
+    vibration_level: float   # now numeric instead of Enum
     past_inspection_data: Optional[List[Dict[str, Any]]] = None
+
+    # --- Auto-capitalize condition only (vibration is numeric now) ---
+    @validator("condition", pre=True, always=True)
+    def normalize_condition(cls, v):
+        if isinstance(v, str):
+            return v.capitalize()
+        return v
 
 class PredictRequest(BaseModel):  
     productId: Optional[str] = None  
@@ -380,6 +388,22 @@ def train_model():
     model.fit(X_scaled, y)
     
     return True
+def classify_voltage(voltage: float) -> str:
+    if voltage < 200 or voltage > 250:
+        return "Replace"
+    elif 200 <= voltage < 210 or 240 < voltage <= 250:
+        return "Repair"
+    else:
+        return "OK"
+
+def classify_vibration(vibration: float) -> str:
+    if vibration > 7.0:
+        return "Replace"
+    elif 5.0 <= vibration <= 7.0:
+        return "Repair"
+    else:
+        return "OK"
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -405,32 +429,23 @@ def inspection_recommendation(request: InspectionRecommendationRequest):
                     "message": "Product expired, needs immediate replacement"
                 }
     
-    # Check for critical vibration
-    if request.vibration_level == VibrationLevel.CRITICAL:
-        return {
-            "recommendation": "Replace",
-            "message": "Replace within next 30 days due to critical vibration"
-        }
-    
+    # --- Updated: Use numeric voltage & vibration classification ---
+    voltage_status = classify_voltage(request.voltage_reading)
+    vibration_status = classify_vibration(request.vibration_level)
+
+    # If either requires Replace
+    if "Replace" in [voltage_status, vibration_status]:
+        return {"recommendation": "Replace", "message": "High risk detected due to unsafe voltage or vibration"}
+
+    # If either requires Repair
+    if "Repair" in [voltage_status, vibration_status]:
+        return {"recommendation": "Repair", "message": "Moderate issue detected, schedule repair"}
+
     # Check for damaged condition
     if request.condition == Condition.DAMAGED:
         return {
             "recommendation": "Replace",
             "message": "Replace within next 30 days due to damaged condition"
-        }
-    
-    # Check for abnormal voltage (assuming normal range is 200-240V)
-    if request.voltage_reading < 200 or request.voltage_reading > 240:
-        return {
-            "recommendation": "Repair",
-            "message": "Equipment needs repair due to abnormal voltage reading"
-        }
-    
-    # Check for high vibration
-    if request.vibration_level == VibrationLevel.HIGH:
-        return {
-            "recommendation": "Repair",
-            "message": "Equipment needs repair due to high vibration"
         }
     
     # Check for worn condition
@@ -445,6 +460,7 @@ def inspection_recommendation(request: InspectionRecommendationRequest):
         "recommendation": "OK",
         "message": "Equipment is in good condition with normal readings"
     }
+
 
 @app.post("/predict")
 def predict(request: PredictRequest):

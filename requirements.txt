@@ -4,5 +4,4 @@ requests
 pandas
 numpy
 scikit-learn
-google-generativeai
 python-dateutil
