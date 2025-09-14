@@ -271,7 +271,7 @@ def analyze_inspection_data(row) -> Dict[str, Any]:
         summary_parts.append(f"{replace_count} Replace")
     
     summary = "Mixed inspection results" if len(summary_parts) > 1 else "Inspection results"
-    summary += f": {', '.join(summary_parts)}" if summary_parts else ": No clear inspection data"
+    summary += f": {', '.join(summary_parts)}" if summary_parts else ": keep inspecting frequently for early detection"
     
     # Risk assessment based on inspection results
     risk_level = "Low"
